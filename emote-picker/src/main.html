@@ -5,6 +5,16 @@
 		html, body { padding: 0; margin: 0; background: #333 }
 		* { color: #ddd }
 
+		body {
+			height: 100%;
+		}
+
+		main {
+			display: flex;
+			flex-flow: column;
+			height: 100%;
+		}
+
 		.emote {
 			display: inline-block;
 			background: #444;
@@ -19,7 +29,25 @@
 			-webkit-transform: scale(1.2, 1.2);
 		}
 
+		.emote-group {
+			margin-bottom: 1em;
+		}
+
+		.emote-group h1 {
+			width: 100%;
+			background: #222;
+			margin: 0;
+			padding-left: 0.25em;
+		}
+
+		#main-container {
+			flex: 1 1 auto;
+			overflow-y: auto;
+			height: 100%;
+		}
+
 		#search-bar {
+			flex: 0 1 auto;
 			width: 100%;
 			background: #222;
 		}
@@ -32,6 +60,10 @@
 			background: #222;
 			padding: 6px;
 			border-bottom: 1px solid white;
+		}
+
+		.hidden {
+			display: none;
 		}
 
 	</style>
@@ -58,11 +90,7 @@
 					break;
 
 				case "update":
-					let promise = render_list(data.entries);
-					print(typeof promise);
-					// for (let v of promise) {
-					// 	print(v);
-					// }
+					render_list(data.entries);
 					break;
 
 				default:
@@ -78,8 +106,60 @@
 		function init() {
 			let input = document.querySelector("#search-bar input");
 			input.addEventListener("input", function(e) {
-				print("fuk ", e.target.value);
+				// print("fuk ", e.target.value);
+				// send("new_filter")
+				let filter = e.target.value;
+				filter_emotes(filter);
 			});
+		}
+
+		async function filter_emotes(filter) {
+			let emotes = document.querySelectorAll(".emote");
+
+			let rate_limiter_count = 0;
+			const rate_limit = 800;
+
+			filter = filter.trim();
+
+			if (filter.length === 0) {
+				for (let el of emotes) {
+					el.classList.remove("hidden");
+
+					rate_limiter_count++;
+					if (rate_limiter_count > rate_limit) {
+						await next_frame();
+						rate_limiter_count = 0;
+					}
+				}
+			} else {
+				for (let el of emotes) {
+					let name = el.title;
+					let visible = name.includes(filter);
+
+					if (visible) {
+						el.classList.remove("hidden");
+					} else {
+						el.classList.add("hidden");
+					}
+
+					rate_limiter_count++;
+					if (rate_limiter_count > rate_limit) {
+						await next_frame();
+						rate_limiter_count = 0;
+					}
+				}
+			}
+
+			for (let group of document.querySelectorAll(".emote-group")) {
+				let el = group.querySelector(".emote:not(.hidden)");
+				if (el == null) {
+					// all child emotes are hidden
+					group.classList.add("hidden");
+				} else {
+					// there's at least one child emote not hidden
+					group.classList.remove("hidden");
+				}
+			}
 		}
 
 		function render_entry(entry) {
@@ -87,38 +167,60 @@
 			el.innerText = entry.text;
 			el.classList.add("emote");
 			el.title = entry.name;
-
 			el.addEventListener("click", on_click);
-
 			return el;
 		}
 
 		async function render_list(entries) {
-			let list = document.querySelector("#emote-list");
+			let list = document.querySelector("#main-container");
 			list.innerHTML = "";
 
 			const chunk_size = 100;
 			const chunk_count = entries.length / chunk_size + 1;
+
+			let groups = {};
 
 			for (let chunk = 0; chunk < chunk_count; chunk++) {
 				let start = chunk * chunk_size;
 				let end = Math.min((chunk+1) * chunk_size, entries.length);
 
 				for (let i = start; i < end; i++) {
-					list.appendChild(render_entry(entries[i]));
+					let entry = entries[i];
+					let el = render_entry(entry);
+					
+					let group = groups[entry.group];
+					if (typeof group === 'undefined') {
+						let group_el = document.createElement("div");
+						group_el.classList.add("emote-group")
+						group_el.innerHTML = `
+							<h1>${entry.group}</h1>
+							<div class="emote-list"></div>
+						`;
+						list.appendChild(group_el);
+
+						group = group_el.querySelector(".emote-list");
+						groups[entry.group] = group;
+					}
+
+					group.appendChild(render_entry(entries[i]));
 				}
 
-				await new Promise((resolve) => requestAnimationFrame(resolve));
+				await next_frame();
 			}
+		}
+
+		async function next_frame() {
+			await new Promise((resolve) => requestAnimationFrame(resolve));
 		}
 
 	</script>
 </head>
 <body>
-	<div id="search-bar">
-		<input type="text"></input>
-	</div>
-	<div id="emote-list">
-	</div>
+	<main>
+		<div id="search-bar">
+			<input type="text"></input>
+		</div>
+		<div id="main-container"></div>
+	</main>
 </body>
 </html>
