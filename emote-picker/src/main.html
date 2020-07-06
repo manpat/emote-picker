@@ -38,6 +38,7 @@
 			background: #222;
 			margin: 0;
 			padding-left: 0.25em;
+			-webkit-user-select: none;
 		}
 
 		#main-container {
@@ -119,7 +120,7 @@
 			let rate_limiter_count = 0;
 			const rate_limit = 800;
 
-			filter = filter.trim();
+			filter = filter.trim().toLowerCase();
 
 			if (filter.length === 0) {
 				for (let el of emotes) {
@@ -133,7 +134,7 @@
 				}
 			} else {
 				for (let el of emotes) {
-					let name = el.title;
+					let name = el.title.toLowerCase();
 					let visible = name.includes(filter);
 
 					if (visible) {
