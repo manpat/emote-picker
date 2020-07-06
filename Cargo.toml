@@ -1,0 +1,6 @@
+[workspace]
+
+members = [
+	"emote-picker",
+	"fetch-emoji-list"
+]
