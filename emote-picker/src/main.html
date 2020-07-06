@@ -29,16 +29,13 @@
 			-webkit-transform: scale(1.2, 1.2);
 		}
 
-		.emote-group {
-			margin-bottom: 1em;
-		}
-
 		.emote-group h1 {
 			width: 100%;
 			background: #222;
 			margin: 0;
 			padding-left: 0.25em;
 			-webkit-user-select: none;
+			font-size: 1em;
 		}
 
 		#main-container {
@@ -120,7 +117,7 @@
 			let rate_limiter_count = 0;
 			const rate_limit = 800;
 
-			filter = filter.trim().toLowerCase();
+			filter = filter.trim();
 
 			if (filter.length === 0) {
 				for (let el of emotes) {
@@ -133,9 +130,21 @@
 					}
 				}
 			} else {
+				let filter_re;
+				try {
+					filter_re = new RegExp(filter, "i");
+				} catch (e) {
+					// We don't care about syntax errors
+					return;
+				}
+
+				function matches(el) {
+					return filter_re.test(el.title)
+						|| filter_re.test(el.dataset.tags);
+				}
+
 				for (let el of emotes) {
-					let name = el.title.toLowerCase();
-					let visible = name.includes(filter);
+					let visible = matches(el);
 
 					if (visible) {
 						el.classList.remove("hidden");
@@ -168,6 +177,7 @@
 			el.innerText = entry.text;
 			el.classList.add("emote");
 			el.title = entry.name;
+			el.dataset.tags = entry.tags.join(" ");
 			el.addEventListener("click", on_click);
 			return el;
 		}
