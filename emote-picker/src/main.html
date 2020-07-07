@@ -48,17 +48,49 @@
 			flex: 0 1 auto;
 			width: 100%;
 			background: #222;
-		}
-
-		#search-bar input {
-			-webkit-appearance: none;
-			width: 100%;
-			border: none;
-
-			background: #222;
-			padding: 6px;
 			border-bottom: 1px solid white;
+
+			display: flex;
 		}
+
+		input {
+			outline: none;
+		}
+
+		input[type="text"] {
+			-webkit-appearance: none;
+			border: none;
+			padding: 6px;
+			background: #222;
+		}
+
+		input[type="text"].error {
+			background: #722;
+		}
+
+		input[type="checkbox"] {
+			cursor: pointer;
+			-webkit-appearance: none;
+			padding: 6px;
+			background: transparent;
+
+			border-radius: 10%;
+		}
+
+		input[type="checkbox"]:hover {
+			background: #333;
+		}
+
+		input[type="checkbox"]:checked {
+			background: #555;
+		}
+
+		#search-bar input[type="text"] { flex: 1 1 auto }
+		#search-bar #yellow-only {
+			flex: 0 0 auto;
+			padding-bottom: 10px;
+		}
+		#search-bar #yellow-only::after { content: "🟡" }
 
 		.hidden {
 			display: none;
@@ -102,61 +134,71 @@
 		}
 
 		function init() {
-			let input = document.querySelector("#search-bar input");
-			input.addEventListener("input", function(e) {
-				// print("fuk ", e.target.value);
-				// send("new_filter")
-				let filter = e.target.value;
-				filter_emotes(filter);
-			});
+			let filter_bar = document.querySelector("#search-bar input[type='text']");
+			let hide_tones_check = document.querySelector("#yellow-only");
+
+			filter_bar.addEventListener("input", filter_emotes);
+			hide_tones_check.addEventListener("input", filter_emotes);
 		}
 
-		async function filter_emotes(filter) {
-			let emotes = document.querySelectorAll(".emote");
+		async function filter_emotes() {
+			let filter_bar = document.querySelector("#search-bar input[type='text']");
+			let hide_tones_check = document.querySelector("#yellow-only");
+
+			filter_bar.classList.remove("error");
+
+			let filter = filter_bar.value.trim();
+			let show_tones = !hide_tones_check.checked;
 
 			let rate_limiter_count = 0;
-			const rate_limit = 800;
+			const rate_limit = 500;
 
-			filter = filter.trim();
+			function emote_is_toned(el) {
+				const tones = ["🏻", "🏼", "🏽", "🏾", "🏿"];
 
-			if (filter.length === 0) {
-				for (let el of emotes) {
-					el.classList.remove("hidden");
-
-					rate_limiter_count++;
-					if (rate_limiter_count > rate_limit) {
-						await next_frame();
-						rate_limiter_count = 0;
+				for (let tone of tones) {
+					if (el.innerText.includes(tone)) {
+						return true;
 					}
 				}
-			} else {
+
+				return false;
+			}
+
+			let visibility_fn;
+
+			if (filter.length > 0) {
 				let filter_re;
 				try {
 					filter_re = new RegExp(filter, "i");
 				} catch (e) {
-					// We don't care about syntax errors
+					filter_bar.classList.add("error");
 					return;
 				}
 
-				function matches(el) {
+				visibility_fn = (el) => {
+					if (!show_tones && emote_is_toned(el)) {
+						return false;
+					}
+
 					return filter_re.test(el.title)
 						|| filter_re.test(el.dataset.tags);
+				};
+			} else {
+				visibility_fn = (el) => show_tones || !emote_is_toned(el);
+			}
+
+			for (let el of document.querySelectorAll(".emote")) {
+				if (visibility_fn(el)) {
+					el.classList.remove("hidden");
+				} else {
+					el.classList.add("hidden");
 				}
 
-				for (let el of emotes) {
-					let visible = matches(el);
-
-					if (visible) {
-						el.classList.remove("hidden");
-					} else {
-						el.classList.add("hidden");
-					}
-
-					rate_limiter_count++;
-					if (rate_limiter_count > rate_limit) {
-						await next_frame();
-						rate_limiter_count = 0;
-					}
+				rate_limiter_count++;
+				if (rate_limiter_count > rate_limit) {
+					await next_frame();
+					rate_limiter_count = 0;
 				}
 			}
 
@@ -218,6 +260,8 @@
 
 				await next_frame();
 			}
+
+			await filter_emotes();
 		}
 
 		async function next_frame() {
@@ -229,7 +273,8 @@
 <body>
 	<main>
 		<div id="search-bar">
-			<input type="text"></input>
+			<input type="text" autofocus></input>
+			<input id="yellow-only" type="checkbox" checked="checked"></input>
 		</div>
 		<div id="main-container"></div>
 	</main>
