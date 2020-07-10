@@ -4,7 +4,7 @@ use std::error::Error;
 
 fn main() -> Result<(), Box<dyn Error>> {
 	let mut view = web_view::builder()
-		.title("Emoji Picker")
+		.title("Emote Picker")
 		.user_data(())
 		.invoke_handler(|_wv, arg| {
 			handle_view_cmd(arg)
@@ -64,8 +64,17 @@ struct EmoteEntry {
 
 
 fn get_emoji_info() -> Result<Vec<EmoteEntry>, Box<dyn Error>> {
-	let data = serde_json::from_str(include_str!("emotes.json"))?;
-	Ok(data)
+	let mut emote_list_path = dirs::config_dir()
+		.expect("Couldn't get config dir");
+	emote_list_path.push("emote-picker/emotes.json");
+
+	println!("{:?}", emote_list_path);
+
+	let emote_list = std::fs::read_to_string(emote_list_path)
+		.unwrap_or("[]".into());
+
+	serde_json::from_str(&emote_list)
+		.map_err(Into::into)
 }
 
 
