@@ -16,7 +16,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 	view.send_message(ViewMessage::Init)?;
 
-	let entries = get_emoji_info().unwrap();
+	let entries = get_emoji_info()?;
 
 	let handle = view.handle();
 	std::thread::spawn(move || {
@@ -30,10 +30,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 		}).unwrap();
 	});
 
-
-	while let Some(()) = view.step().transpose()? {
-
-	}
+	view.run()?;
 
 	Ok(())
 }
@@ -67,8 +64,6 @@ fn get_emoji_info() -> Result<Vec<EmoteEntry>, Box<dyn Error>> {
 	let mut emote_list_path = dirs::config_dir()
 		.expect("Couldn't get config dir");
 	emote_list_path.push("emote-picker/emotes.json");
-
-	println!("{:?}", emote_list_path);
 
 	let emote_list = std::fs::read_to_string(emote_list_path)
 		.unwrap_or("[]".into());

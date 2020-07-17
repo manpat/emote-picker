@@ -92,13 +92,11 @@
 		}
 		#search-bar #yellow-only::after { content: "🟡" }
 
-		.hidden {
-			display: none;
-		}
-
 	</style>
 	<script>
 		"use strict";
+
+		let all_emotes = [];
 
 		function send(type, obj) {
 			let string = JSON.stringify({
@@ -120,7 +118,8 @@
 					break;
 
 				case "update":
-					render_list(data.entries);
+					all_emotes = data.entries;
+					filter_emotes(data.entries);
 					break;
 
 				default:
@@ -150,14 +149,11 @@
 			let filter = filter_bar.value.trim();
 			let show_tones = !hide_tones_check.checked;
 
-			let rate_limiter_count = 0;
-			const rate_limit = 500;
-
-			function emote_is_toned(el) {
+			function emote_is_toned(entry) {
 				const tones = ["🏻", "🏼", "🏽", "🏾", "🏿"];
 
 				for (let tone of tones) {
-					if (el.innerText.includes(tone)) {
+					if (entry.text.includes(tone)) {
 						return true;
 					}
 				}
@@ -176,42 +172,20 @@
 					return;
 				}
 
-				visibility_fn = (el) => {
-					if (!show_tones && emote_is_toned(el)) {
+				visibility_fn = (entry) => {
+					if (!show_tones && emote_is_toned(entry)) {
 						return false;
 					}
 
-					return filter_re.test(el.title)
-						|| filter_re.test(el.dataset.tags);
+					return filter_re.test(entry.name)
+						|| entry.tags.some((t) => filter_re.test(t));
 				};
 			} else {
-				visibility_fn = (el) => show_tones || !emote_is_toned(el);
+				visibility_fn = (entry) => show_tones || !emote_is_toned(entry);
 			}
 
-			for (let el of document.querySelectorAll(".emote")) {
-				if (visibility_fn(el)) {
-					el.classList.remove("hidden");
-				} else {
-					el.classList.add("hidden");
-				}
-
-				rate_limiter_count++;
-				if (rate_limiter_count > rate_limit) {
-					await next_frame();
-					rate_limiter_count = 0;
-				}
-			}
-
-			for (let group of document.querySelectorAll(".emote-group")) {
-				let el = group.querySelector(".emote:not(.hidden)");
-				if (el == null) {
-					// all child emotes are hidden
-					group.classList.add("hidden");
-				} else {
-					// there's at least one child emote not hidden
-					group.classList.remove("hidden");
-				}
-			}
+			let filtered_emotes = all_emotes.filter(visibility_fn);
+			await render_list(filtered_emotes);
 		}
 
 		function render_entry(entry) {
@@ -224,11 +198,27 @@
 			return el;
 		}
 
+		let render_tasks = [];
+
 		async function render_list(entries) {
+			// Cancel running renders and wait for them to finish
+			for (let task of render_tasks) {
+				task.stop = true;
+			}
+
+			while (render_tasks.length > 0) {
+				await next_frame();
+			}
+
+			// Register current task so it can be cancelled
+			let stop_token = {stop:false};
+			render_tasks.push(stop_token);
+
+			// Clear emote list and rebuild lazily over several frames
 			let list = document.querySelector("#main-container");
 			list.innerHTML = "";
 
-			const chunk_size = 100;
+			const chunk_size = 300;
 			const chunk_count = entries.length / chunk_size + 1;
 
 			let groups = {};
@@ -259,9 +249,18 @@
 				}
 
 				await next_frame();
+				if (stop_token.stop) {
+					break;
+				}
 			}
 
-			await filter_emotes();
+			// Remove render task from task list
+			let idx = render_tasks.indexOf(stop_token);
+			if (idx === -1) {
+				print("STOP TOKEN NOT FOUND IN RENDER TASK LIST");
+				return;
+			}
+			render_tasks.splice(idx, 1);
 		}
 
 		async function next_frame() {
