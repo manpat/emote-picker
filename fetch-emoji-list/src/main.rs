@@ -40,7 +40,7 @@ fn parse_emoji_info(raw: &str) -> Vec<EmoteEntry> {
 
 	let group_re = Regex::new(r"# group: ").unwrap();
 	let subgroup_re = Regex::new(r"# subgroup: ").unwrap();
-	let emoji_re = Regex::new(r"([\dA-F ]+)\s*; ([\w\-]+)\s*#.*E\d+.\d\s([\w ]+)").unwrap();
+	let emoji_re = Regex::new(r"([\dA-F ]+)\s*; ([\w\-]+)\s*#.*E\d+.\d\s(.+)").unwrap();
 
 	let mut entries = Vec::new();
 
@@ -49,14 +49,14 @@ fn parse_emoji_info(raw: &str) -> Vec<EmoteEntry> {
 			.filter(|l| !l.starts_with('#') && !l.trim().is_empty())
 			.next();
 
-		let group_name = if let Some(n) = name { n.trim() } else { continue };
+		let group_name = if let Some(n) = name { normalise_quotes(n.trim() )} else { continue };
 
 		for subgroup_chunk in subgroup_re.split(group_chunk).skip(1) {
 			let name = subgroup_chunk.lines()
 				.filter(|l| !l.starts_with('#') && !l.trim().is_empty())
 				.next();
 
-			let subgroup_name = if let Some(n) = name { n.trim() } else { continue };
+			let subgroup_name = if let Some(n) = name { normalise_quotes(n.trim()) } else { continue };
 
 			for entry in emoji_re.captures_iter(subgroup_chunk) {
 				let qualification = entry.get(2).unwrap().as_str();
@@ -70,13 +70,13 @@ fn parse_emoji_info(raw: &str) -> Vec<EmoteEntry> {
 					.map(|s| u32::from_str_radix(s, 16).ok().and_then(std::char::from_u32).unwrap())
 					.collect();
 
-				let name = entry.get(3).unwrap().as_str().to_owned();
+				let name = entry.get(3).unwrap().as_str();
 				
 				entries.push(EmoteEntry {
 					text,
-					name,
-					group: group_name.to_owned(),
-					tags: vec![subgroup_name.to_owned()],
+					name: normalise_quotes(name),
+					group: group_name.clone(),
+					tags: vec![subgroup_name.clone()],
 				});
 			}
 		}
@@ -85,6 +85,12 @@ fn parse_emoji_info(raw: &str) -> Vec<EmoteEntry> {
 	entries
 }
 
+
+fn normalise_quotes(s: &str) -> String {
+	// Because for some reason unicode.org decided that U+2019 was the superior apostrophe
+	// despite it existing on literally no keyboard I've ever owned
+	s.replace("\u{2019}", "'")
+}
 
 
 fn fetch(host: &str, resource: &str) -> Result<String, Box<dyn Error>> {
