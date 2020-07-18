@@ -86,17 +86,21 @@
 		}
 
 		#search-bar input[type="text"] { flex: 1 1 auto }
-		#search-bar #yellow-only {
+		#search-bar input[type="checkbox"] {
 			flex: 0 0 auto;
 			padding-bottom: 10px;
 		}
+
 		#search-bar #yellow-only::after { content: "🟡" }
+		#search-bar #gender-neutral-only::after { content: "🧑‍🤝‍🧑" }
+		#search-bar #prefers-emoji-presentation::after { content: "🔳" }
 
 	</style>
 	<script>
 		"use strict";
 
 		let all_emotes = [];
+		let render_tasks = [];
 
 		function send(type, obj) {
 			let string = JSON.stringify({
@@ -119,7 +123,7 @@
 
 				case "update":
 					all_emotes = data.entries;
-					filter_emotes(data.entries);
+					filter_emotes();
 					break;
 
 				default:
@@ -135,19 +139,23 @@
 		function init() {
 			let filter_bar = document.querySelector("#search-bar input[type='text']");
 			let hide_tones_check = document.querySelector("#yellow-only");
+			let hide_gender_check = document.querySelector("#gender-neutral-only");
 
 			filter_bar.addEventListener("input", filter_emotes);
 			hide_tones_check.addEventListener("input", filter_emotes);
+			hide_gender_check.addEventListener("input", filter_emotes);
 		}
 
 		async function filter_emotes() {
 			let filter_bar = document.querySelector("#search-bar input[type='text']");
 			let hide_tones_check = document.querySelector("#yellow-only");
+			let hide_gender_check = document.querySelector("#gender-neutral-only");
 
 			filter_bar.classList.remove("error");
 
 			let filter = filter_bar.value.trim();
 			let show_tones = !hide_tones_check.checked;
+			let show_gender = !hide_gender_check.checked;
 
 			function emote_is_toned(entry) {
 				const tones = ["🏻", "🏼", "🏽", "🏾", "🏿"];
@@ -161,7 +169,22 @@
 				return false;
 			}
 
-			let visibility_fn;
+			function emote_is_gendered(entry) {
+				const modifiers = ["♀", "♂", "👨", "👩"];
+
+				for (let modifier of modifiers) {
+					if (entry.text.includes(modifier)) {
+						return true;
+					}
+				}
+
+				return false;
+			}
+
+			let visibility_fn = (entry) => {
+				return (show_tones || !emote_is_toned(entry))
+					&& (show_gender || !emote_is_gendered(entry));
+			};
 
 			if (filter.length > 0) {
 				let filter_re;
@@ -172,16 +195,14 @@
 					return;
 				}
 
-				visibility_fn = (entry) => {
-					if (!show_tones && emote_is_toned(entry)) {
+				visibility_fn = function(fn, entry) {
+					if (!fn(entry)) {
 						return false;
 					}
 
 					return filter_re.test(entry.name)
 						|| entry.tags.some((t) => filter_re.test(t));
-				};
-			} else {
-				visibility_fn = (entry) => show_tones || !emote_is_toned(entry);
+				}.bind(null, visibility_fn);
 			}
 
 			let filtered_emotes = all_emotes.filter(visibility_fn);
@@ -197,8 +218,6 @@
 			el.addEventListener("click", on_click);
 			return el;
 		}
-
-		let render_tasks = [];
 
 		async function render_list(entries) {
 			// Cancel running renders and wait for them to finish
@@ -273,7 +292,8 @@
 	<main>
 		<div id="search-bar">
 			<input type="text" autofocus></input>
-			<input id="yellow-only" type="checkbox" checked="checked"></input>
+			<input id="yellow-only" title="Hide skin tone emoji" type="checkbox" checked="checked"></input>
+			<input id="gender-neutral-only" title="Hide gendered emoji" type="checkbox" checked="checked"></input>
 		</div>
 		<div id="main-container"></div>
 	</main>
